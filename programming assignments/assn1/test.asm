@@ -1,0 +1,22 @@
+.ORIG x3000
+
+LD R1, DEC_11
+LD R2, DEC_55
+LD R3, DEC_0
+
+LOOP 
+    ADD R3, R3, #1
+    
+    ADD R2, R2, #-1
+    ADD R1, R1, #-1
+    BRp LOOP
+    
+END_OF_LOOP
+
+HALT
+
+DEC_11 .FILL #11
+DEC_55 .FILL #55
+DEC_0 .FILL #0
+
+.END
