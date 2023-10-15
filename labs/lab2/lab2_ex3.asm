@@ -11,7 +11,7 @@
 .ORIG x3000
     LD R0, HEX_4000
     LDR R1, R0, #0 ; loads value at address in R0 into R1
-    STR R1, R0, #1 ; stores value at address held by R1 into (address held by R0) + 1
+    STR R1, R0, #1 ; stores value in R1 into (address held by R0) + 1
     LDI R2, HEX_4001 ; loads into R2 value at x4001 (should be 11)
 HALT
     THING_ADDRESS .FILL x4000
