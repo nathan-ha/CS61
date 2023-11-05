@@ -15,175 +15,205 @@
 ;THE BINARY REPRESENTATION OF THE USER-ENTERED DECIMAL NUMBER MUST BE STORED IN R4
 ;=================================================================================
 
-; R4 holds negative flag
-; R1 holds starting address of string
-; R7 holds sum
-; R0 holds current digit
-
 .ORIG x3000		
 ;-------------
 ;Instructions
 ;-------------
-LD R6, TOP_STACK_ADDR ; init stack
+; R3 holds negative flag
+; R4 holds number size
+; R1 holds start address of string
+
 
 TOP_OF_CODE
 
-; output intro prompt
-LD R5, introPromptPtr
-JSRR R5
+LD R6, TOP_STACK_ADDR ; init stack
+AND R4, R4, x0 ; R4 counts number of numbers
 
-; get input as string
-LD R5, SUB_GET_STRING
+LD R1, introPromptPtr
+JSRR R1
+
 LEA R1, STR_INPUT
-JSRR R5
-						
+LD R7, DEC_5_3000 ; used for counting grabbed chars
 
-; Get first character, test for '\n', '+', '-', digit/non-digit 
+; get first character
+GETC ; R0 <- input
 
-; is it = '-'? if so, set neg flag, go get digits
-LDR R2, R1, x0 ; R2 <- first char in string
-; R3 = R2(first char) - R4('-')
-LD R4, DEC_NEG_45_3000 ; 45 is '-'
-ADD R3, R2, R4
-; make R4 0 if positive, 1 for negative
-BRz IF_INPUT_IS_NEGATIVE
+AND R3, R3, x0
+; check if negative
+LD R2, DEC_NEG_45_3000
+ADD R2, R2, R0 ; R2 <- (char) - '-'
+BRz IS_NEGATIVE
+; check if positive
+LD R2, DEC_NEG_43_3000
+ADD R2, R2, R0 ; R2 <- (char) - '+'
+BRz IS_NEGATIVE_END
 
-; is it = '+'? if so, ignore it, go get digits
-LDR R2, R1, x0 ; R2 <- first char in string
-; R3 = R2(first char) - R4('+')
-LD R4, DEC_NEG_43_3000 ; 43 is '+'
-ADD R3, R2, R4
-BRz IF_INPUT_IS_PLUS
+; check if newline
+LD R2, DEC_NEG_10_3000
+ADD R2, R0, R2 ; R2 <- (char) - '\n'
+BRz IS_NEWLINE
 
-; is very first character = '\n'? if so, just quit (no message)!
-LDR R2, R1, x0 ; R2 <- first char in string
-; R3 = R2(first char) - R4('\n')
-LD R4, DEC_NEG_10_3000 ; 10 is '\n'
-ADD R3, R2, R4
-BRz IF_NEWLINE
+; check if any non-numeric input
+; R4 = R2(first char) - R5('0')
+LD R5, DEC_NEG_48_3000 ; 48 is '0'
+ADD R5, R0, R5
+BRn IF_ERROR
 
-AND R4, R4, x0 ; if this line is reached, then the number is positive
-IF_FIRST_DIGIT_END
+; is it > '9'
+; R4 = R0(first char) - R5('9')
+LD R5, DEC_NEG_57_3000 ; 57 is '9'
+ADD R5, R0, R5
+BRp IF_ERROR
 
-LD R0, DEC_10_3000
 OUT
-ADD R0, R1, x0
-PUTS
+; put number into string
+ADD R0, R0, #-16
+ADD R0, R0, #-16 ; lazy ascii conversion
+ADD R0, R0, #-16
+; store first char into string
+STR R0, R1, x0 ; char -> R1 (mem add.)
+ADD R1, R1, x1
+ADD R4, R4, x1
 
-; back up R1 and R4
+ADD R7, R7, #-1
+
+BR SKIP_PRINTING_SIGN
+
+IS_NEGATIVE_END
+
+OUT
+
+SKIP_PRINTING_SIGN
+
+
+; back up register
 ADD R6, R6, #-1
-STR R1, R6, #0
-ADD R6, R6, #-1
-STR R4, R6, #0
+STR R3, R6, #0
 
-AND R5, R5, x0
-ADD R2, R1, x0 ; R2 <- location in memory
-STRING_LENGTH_LOOP
-    ; get string length (store into R5 -> label)
-    LDR R3, R2, x0 ; R3 <- ascii value at location
-    LD R4, ASCII_NEG_x ; R5 <- sentinel char
-    ADD R5, R5, x1
-    ADD R2, R2, x1
-    ADD R0, R3, R4 ; check if sentinel reached
-BRnp STRING_LENGTH_LOOP
-ADD R5, R5, #-1
-ST R5, INPUT_LENGTH
-
-LD R3, INPUT_LENGTH
-
-LD R0, INPUT_LENGTH
-AND R7, R7, x0
-ADD R0, R0, #-1
-IS_DIGIT_LOOP
-
-    ; back up R0
-    ADD R6, R6, #-1
-    STR R0, R6, #0
+; get rest of chars
+; TODO if there are no numbers after +-
+GET_CHARS
     
-    ; is it < '0'? if so, it is not a digit	- o/p error message, start over
-    LDR R2, R1, x0 ; R2 <- first char in string
+    GETC ; R0 <- input
+    
+    ; check if newline
+    LD R2, DEC_NEG_10_3000
+    ADD R2, R0, R2 ; R2 <- (char) - '\n'
+    BRz IS_NEWLINE_2
+    
+    ; check if any non-numeric input
     ; R3 = R2(first char) - R5('0')
     LD R5, DEC_NEG_48_3000 ; 48 is '0'
-    ADD R3, R2, R5
+    ADD R3, R0, R5
     BRn IF_ERROR
     
-    ; is it > '9'? if so, it is not a digit	- o/p error message, start over
-    LDR R2, R1, x0 ; R2 <- first char in string
+    ; is it > '9'
     ; R3 = R2(first char) - R5('9')
     LD R5, DEC_NEG_57_3000 ; 57 is '9'
-    ADD R3, R2, R5
+    ADD R3, R0, R5
     BRp IF_ERROR
-    				
-    ; if none of the above, first character is first numeric digit - convert it to number & store in target register!
-    LD R3, DEC_NEG_48_3000
-    LDR R2, R1, x0
-    ADD R4, R2, R3 ; R4 <- R2 - R3 (first_char - 48) ; converts ascii to digit
     
-    ; basically multiplying by 10 for the number of digits you have
-    ; R4 holds digit for now
-    ; LD R0, INPUT_LENGTH ; keeps the digit count
-    ; ADD R3, R4, x0 ; R3 holds the original R4 value
+    OUT
+    ; store character in string
+    ADD R0, R0, #-16
+    ADD R0, R0, #-16 ; lazy ascii conversion
+    ADD R0, R0, #-16
+    
+    STR R0, R1, x0 ; char -> R1 (mem add.)
+    ADD R1, R1, x1
+    
+    ADD R4, R4, #1 ; increment character size
+    ADD R7, R7, #-1
+BRp GET_CHARS
+    
+IS_NEWLINE_2 ; jumps here if an enter is pressed
+
+
+AND R3, R3, x0 ; holds total sum
+
+ADD R2, R4, #-1
+BRz ONE_DIGIT_INPUT
+
+ADD R4, R4, #-1 ; subtracting because idk I'm so tired rn
+LEA R1, STR_INPUT
+FOR_EACH_CHAR
+    ; back up R4
+    ADD R6, R6, #-1
+    STR R4, R6, #0
+    
+    ; basically multiplying by 10^d for each digit
+    ; R1 holds digit address
+    ; R2 holds digit value
+    ; R3 holds sum
+    LDR R2, R1, x0
     SHIFT_DECIMAL_LOOP
-        LD R2, DEC_9_3000
-        ADD R3, R4, x0 ; R3 holds the original R4 value
+        LD R7, DEC_9_3000
+        ADD R5, R2, x0 ; R5 holds the original R2 value
         MULTIPLY_10_LOOP
-            ADD R4, R4, R3
-            ADD R2, R2, #-1
+            ADD R2, R2, R5
+            ADD R7, R7, #-1
         BRp MULTIPLY_10_LOOP
-        ADD R0, R0, #-1
+        ADD R4, R4, #-1
     Brp SHIFT_DECIMAL_LOOP
     
-    ADD R7, R7, R4 ; store sum of digits
-    					
-    ; Now get remaining digits from user in a loop (max 5), testing each to see if it is a digit, and build up number in accumulator
-    ADD R1, R1, x1 ; next char
+    ADD R3, R3, R2 ; add to total sum
     
-    ; restore R3
-    LDR R0, R6, #0
+    LDR R4, R6, #0 ; restore R4
     ADD R6, R6, #1
     
-    ADD R0, R0, #-1
-BRp IS_DIGIT_LOOP
+    ADD R1, R1, x1
+    ADD R4, R4, #-1
+BRp FOR_EACH_CHAR
 
-; add last digit to R7
-; ADD R1, R1, #1
-LDR R0, R1, x0 ; store last ascii
-LD R2, DEC_NEG_48_3000
-ADD R4, R0, R2
-ADD R7, R4, R7
+; last digit handled separately
+LDR R2, R1, x0
+ADD R3, R3, R2 ; add to total sum
 
-; restore R1 and R4
-LDR R4, R6, #0
+ADD R4, R3, x0 ; R4 must have the final value
+ONE_DIGIT_INPUT_END
+
+; restore registers
+LDR R3, R6, #0 ; holds negative flag again
 ADD R6, R6, #1
-LDR R1, R6, #0
-ADD R6, R6, #1
 
-; TODO implement negative conversion
-; TODO Convert binary to string
 
-; remember to end with a newline!
-				
+; convert to negative if flag is 1
+ADD R3, R3, x0
+BRp CONVERT_TO_NEGATIVE
+CONVERT_TO_NEGATIVE_END
+
+; ; newline
+; LD R0, DEC_10_3000
+; OUT
+
+
 HALT
 
-IF_INPUT_IS_NEGATIVE
-    AND R4, R4, x0
-    ADD R4, R4, x1
-    ADD R1, R1, x1
-BR IF_FIRST_DIGIT_END
-
-IF_INPUT_IS_PLUS
-    ADD R1, R1, x1
-    AND R4, R4, x0
-BR IF_FIRST_DIGIT_END
-
-IF_NEWLINE
-    HALT
 
 IF_ERROR
+    LD R0, DEC_10_3000
+    OUT
     LD R5, errorMessagePtr
     JSRR R5
 BR TOP_OF_CODE
-    
+
+CONVERT_TO_NEGATIVE
+    NOT R4, R4
+    ADD R4, R4, x1
+BR CONVERT_TO_NEGATIVE_END
+
+IS_NEGATIVE
+    AND R3, R3, x0
+    ADD R3, R3, #1
+BR IS_NEGATIVE_END
+
+IS_NEWLINE
+HALT
+
+ONE_DIGIT_INPUT
+    LD R4, STR_INPUT
+BR ONE_DIGIT_INPUT_END
+
 
 
 ;---------------	
@@ -194,19 +224,24 @@ introPromptPtr  .FILL xB000
 errorMessagePtr .FILL xB200
 TOP_STACK_ADDR  .FILL xFE00
 SUB_GET_STRING  .FILL x3200
-STR_INPUT       .STRINGZ "xxxxxxx" ; sentinel character will be a lowercase x
+STR_INPUT       .BLKW   #8 ; sentinel character will be a 0
 DEC_NEG_45_3000 .FILL #-45
 DEC_NEG_10_3000 .FILL #-10
 DEC_10_3000     .FILL #10
 DEC_NEG_43_3000 .FILL #-43
-STR_OUTPUT      .STRINGZ "0000 0000 0000 0000"
 DEC_NEG_48_3000 .FILL #-48
 DEC_NEG_57_3000 .FILL #-57
 DEC_5_3000      .FILL #5
 ASCII_NEG_x         .FILL #-120
+ASCII_x         .FILL #120
 INPUT_LENGTH    .BLKW #1
 DEC_4_3000      .FILL #4
 DEC_9_3000      .FILL #9
+MASK_LEADING_DIGIT .FILL x8000
+ASCII_1        .FILL #49
+DEC_7           .FILL #7
+DEC_8           .FILL #8
+DEC_6_3000      .FILL #6
 
 .END
 
@@ -255,72 +290,12 @@ ADD R6, R6, #1
 
 STR_ERROR .STRINGZ	 "ERROR: invalid input\n"
 
+RET
+
 ;---------------
 ; END of PROGRAM
 ;---------------
 .END
-
-.ORIG x3200
-;------------------------------------------------------------------------
-; Subroutine: SUB_GET_STRING
-; Parameter (R1): The starting address of the character array
-; Return: void
-;-------------------------------------------------------------------------
-
-; back upss
-ADD R6, R6, #-1
-STR R7, R6, #0
-
-ADD R6, R6, #-1
-STR R2, R6, #0
-
-ADD R6, R6, #-1
-STR R4, R6, #0
-
-ADD R6, R6, #-1
-STR R3, R6, #0
-
-
-
-AND R2, R2, x0
-AND R4, R4, x0 ; R4 <- 0
-ADD R4, R1, x0 ; R4 <- R1
-LD R5, DEC_6_3200
-GET_STR_LOOP
-    GETC
-    ADD R3, R0, x0 ; R3 <- R0
-    ADD R3, R3, #-10 ; R3 <- R3 - 10 ; break loop if user enters an enter
-    BRz SKIP_IF_ENTER ; skip printing/storing the enter
-    OUT
-    STR R0, R4, x0 ; R4 <- R0
-    ADD R4, R4, #1
-    
-    ADD R5, R5, #-1 ; quit the program if more than 5 chars are input
-    BRz MAX_LOOPS_3200
-SKIP_IF_ENTER
-BRnp GET_STR_LOOP
-
-
-; restore registers
-
-LDR R3, R6, #0
-ADD R6, R6, #1
-
-LDR R4, R6, #0
-ADD R6, R6, #1
-
-LDR R2, R6, #0
-ADD R6, R6, #1
-
-LDR R7, R6, #0
-ADD R6, R6, #1
-
-MAX_LOOPS_3200
-RET
-
-DEC_6_3200 .FILL #6
-
-.end
 
 ;-------------------
 ; PURPOSE of PROGRAM
