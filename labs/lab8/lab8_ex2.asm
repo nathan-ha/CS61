@@ -11,7 +11,7 @@
 ; ===================
 ; EX 3 ANSWERS
 ; algorithm: 
-;   if the number is odd (lsb=1), flip the lsb to 0, since integer division truncates the number
+;   set lsb to 0 // it just works
 ;   start loop
 ;      save msb
 ;      left shift
